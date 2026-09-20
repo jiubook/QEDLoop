@@ -8,12 +8,13 @@
 
 ```
 discover ─► refine ─► review ─► patch ─► qa ─┐
-    ▲                    │  ▲                 │  质量未达标
-    │                 拒绝│  │拒绝             │
-    └────────────────────┼──┘                 │
-                          └───────────────────┘
-                        converged / escalated / human_review
+    ▲          ▲         │                   │
+    │          └── 拒绝 ─┘                   │  质量未达标 → 下一轮
+    └────────────────────────────────────────┘
+     converged / escalated / human_review
 ```
+
+两条回边各有一个预算封顶：`reject` 退回 Phase 2，`质量未达标` 回到 Phase 1 开新一轮（两者的守卫见 `docs/architecture.md` 的 loops 表）。
 
 - **Phase 1 发现**：三个透镜各自找新缺陷；同一个缺陷的多份报告折叠成一条账目；每轮只锁定**一个**目标。
 - **Phase 2 细化**：把缺陷变成可证伪的需求 + 有序实施步骤 + 测试设计。

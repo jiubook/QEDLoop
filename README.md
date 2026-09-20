@@ -10,12 +10,13 @@ evidence rather than by a model's opinion.
 
 ```
 discover ──► refine ──► review ──► patch ──► qa ──┐
-    ▲                       │  ▲                   │
-    │                    reject│  │reject           │ quality below target
-    └───────────────────────┼──┘                   │
-                            └──────────────────────┘
-                                    converged / escalated / human_review
+    ▲           ▲          │                      │
+    │           └─ reject ─┘                      │  quality < target -> next cycle
+    └─────────────────────────────────────────────┘
+       converged / escalated / human_review
 ```
+
+Both back edges are bounded: `reject` returns to Phase 2, a quality miss starts a new cycle at Phase 1 (guards in the loops table of `docs/architecture.md`).
 
 * **Phase 1 discover** — three lenses find new defects; reports of one defect
   collapse into a single ledger row; the cycle takes exactly one target.
