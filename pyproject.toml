@@ -18,6 +18,11 @@ authors = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/jiubook/QEDLoop"
+Repository = "https://github.com/jiubook/QEDLoop"
+Issues = "https://github.com/jiubook/QEDLoop/issues"
+
 [project.optional-dependencies]
 llm = []
 yaml = ["PyYAML>=6.0"]
