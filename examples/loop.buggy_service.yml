@@ -1,0 +1,113 @@
+# Configuration for the self-iterating development loop.
+#
+#   python run.py run --config examples/loop.buggy_service.yml
+#
+# Every value here is optional: the CLI flags override this file, and this file
+# overrides the built-in defaults.  Environment variables are expanded with
+# ${NAME} or ${NAME:-fallback}, which is one way to keep a key out of the file:
+#
+#   company-gateway:
+#     base_url: ${CORP_LLM_URL:-https://llm.corp.example.com/v1}
+#     api_key_env: CORP_LLM_KEY
+#
+# The other way is api_key_env below: the key is read from the environment at
+# run time and never stored here.
+run:
+  target: examples/buggy_service
+  out_dir: runs
+  include:
+    - "*.py"
+  exclude:
+    - "runs/*"
+  max_iterations: 4          # phase-5 loop budget
+  max_steps: 80              # hard node-execution budget (infinite-loop guard)
+  provider: auto             # auto | a built-in channel | a name from providers: below
+  model: ""                  # overrides the channel's model
+  base_url: ""               # overrides the channel's base_url
+  llm_timeout: null          # null = each channel's own timeout
+  cache: true                # memoise identical prompts within a run
+  token_budget: 0            # 0 = unlimited
+  run_tests: true            # let phase 5 execute the target's suite
+  test_timeout: 120          # seconds per pytest invocation
+  keep_workspaces: false     # true: keep the scratch trees for inspection
+  quiet: false
+
+# ---------------------------------------------------------------------------
+# Model channels.  Declare any number of endpoints here; select one with
+#   python run.py run --config <this file> --provider <name>
+# and inspect them all with
+#   python run.py channels --config <this file> [--probe]
+#
+# Keys are read from the environment (api_key_env), never written here.  Set
+# api_key_env to "" for a server that needs no key, such as a local one.
+# ---------------------------------------------------------------------------
+providers:
+  mock:
+    kind: mock               # deterministic, offline; proves the plumbing only
+
+  local-ollama:
+    kind: openai-compat
+    base_url: http://127.0.0.1:11434/v1
+    model: qwen2.5-coder:14b
+    api_key_env: ""          # local server: no key required
+    timeout: 300             # local models are slow; do not time out early
+    cache: true
+
+  local-lmstudio:
+    kind: openai-compat
+    base_url: http://127.0.0.1:1234/v1
+    model: qwen2.5-coder-14b-instruct
+    api_key_env: ""
+    timeout: 300
+
+  company-gateway:
+    kind: openai-compat      # any OpenAI-compatible gateway/proxy
+    base_url: https://llm.corp.example.com/v1
+    model: gpt-4o-mini
+    api_key_env: CORP_LLM_KEY
+    note: "corporate gateway; ask platform team for a key"
+
+  deepseek:
+    kind: deepseek
+    model: deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY
+
+  openrouter:
+    kind: openai-compat
+    base_url: https://openrouter.ai/api/v1
+    model: anthropic/claude-3.5-sonnet
+    api_key_env: OPENROUTER_API_KEY
+
+# The two gates.  Phase 3 uses min_approvals / max_self_loops; phase 5 uses
+# quality_target and the plateau rule.
+gate:
+  min_approvals: 1           # reviewer approvals needed to let a plan through
+  max_self_loops: 3          # review -> refine back edges before forcing an exit.
+                             # Counted across the WHOLE run: the counter is never
+                             # reset per cycle or per issue, so one hard issue can
+                             # spend all of it before max_iterations is reached.
+  quality_target: 0.80       # stop threshold for the blended quality score
+  min_iterations: 1          # never declare victory before this many cycles
+  plateau_epsilon: 0.02      # quality gain below this counts as a plateau
+  max_no_progress: 2         # consecutive plateaus before handing to a human
+  require_tests: true        # a run without test evidence cannot converge
+  weights:
+    tests: 0.5               # measured suite result
+    static: 0.2              # compile status + declared-defect markers
+    # No `review` key: reviewer verdicts are a hard requirement (min_approvals
+    # above), judged by convergence() on their own.  A requirement that is also
+    # weighted is counted twice, and the weight keeps moving after the
+    # requirement is already satisfied.  A stale key here is dropped on load.
+
+# Optional: the target repository's own static check, run against the candidate
+# tree.  Green tests cannot see a lint rule, so without it the loop can hand back
+# a patch that the target's CI rejects.  `{python}` is the sandbox interpreter
+# (the same one the suite runs under) and `{files}` expands to the files this
+# cycle changed -- scoping the check to the patch is what keeps a failure
+# attributable, and a whole-repository check would also fail on violations the
+# loop is not allowed to touch.  The command must be read-only: no `--fix`.
+#
+#   lint_command: "{python} -m ruff check {files}"
+
+# Per-role overrides are intentionally not exposed yet: add them in
+# qedloop/prompts.py AGENTS so the JSON contract and the prompt stay together.
